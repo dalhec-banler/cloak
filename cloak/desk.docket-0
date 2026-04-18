@@ -1,0 +1,11 @@
+:~
+  title+'Cloak'
+  info+'Sovereign identity fragmentation'
+  color+0x1a.1a2e
+  image+'https://raw.githubusercontent.com/abnels/cloak/main/cloak-icon.svg'
+  base+'cloak'
+  glob-ames+[~palrum-roclur 0v0]
+  version+[0 1 0]
+  website+'https://github.com/abnels/cloak'
+  license+'MIT'
+==

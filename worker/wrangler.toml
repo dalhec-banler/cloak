@@ -1,0 +1,10 @@
+name = "cloak-mail"
+main = "worker.js"
+compatibility_date = "2024-01-01"
+
+[[kv_namespaces]]
+binding = "CLOAK_KV"
+id = ""  # filled during automated setup
+
+[vars]
+WORKER_SECRET = ""  # filled during automated setup

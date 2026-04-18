@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cloak</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div id="app">
+    <!-- Setup view: connect to ship -->
+    <div id="setup-view" class="view hidden">
+      <div class="header">
+        <h1>Cloak</h1>
+        <p class="subtitle">Connect to your Urbit ship</p>
+      </div>
+      <div class="form-group">
+        <label for="ship-url">Ship URL</label>
+        <input type="url" id="ship-url" placeholder="https://your-ship.startram.io">
+      </div>
+      <div class="form-group">
+        <label for="api-token">API Token</label>
+        <input type="password" id="api-token" placeholder="Paste token from Cloak app">
+      </div>
+      <div class="form-group">
+        <label for="worker-url">Worker URL</label>
+        <input type="url" id="worker-url" placeholder="https://cloak-mail.your-account.workers.dev">
+      </div>
+      <div class="form-group">
+        <label for="worker-secret">Worker Secret</label>
+        <input type="password" id="worker-secret" placeholder="Auto-filled during setup">
+      </div>
+      <button id="connect-btn" class="btn-primary">Connect</button>
+      <p id="setup-error" class="error hidden"></p>
+    </div>
+
+    <!-- Main view: current page context -->
+    <div id="main-view" class="view hidden">
+      <div class="header">
+        <h1>Cloak</h1>
+        <div class="header-actions">
+          <button id="settings-btn" class="btn-icon" title="Settings">⚙</button>
+        </div>
+      </div>
+
+      <!-- Current page info -->
+      <div id="page-context" class="section">
+        <p class="domain" id="current-domain">—</p>
+      </div>
+
+      <!-- Match found for this domain -->
+      <div id="match-section" class="section hidden">
+        <div class="identity-card">
+          <div class="identity-info">
+            <span class="identity-label" id="match-label"></span>
+            <span class="identity-alias" id="match-alias"></span>
+          </div>
+          <div class="identity-actions">
+            <button id="autofill-btn" class="btn-small">Autofill</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- No match — offer to create -->
+      <div id="no-match-section" class="section hidden">
+        <p class="muted">No cloak for this site</p>
+        <button id="create-btn" class="btn-primary">Create Cloak</button>
+      </div>
+
+      <!-- Pending verification codes -->
+      <div id="codes-section" class="section hidden">
+        <h2>Verification Codes</h2>
+        <div id="codes-list"></div>
+      </div>
+
+      <!-- All identities -->
+      <div id="identities-section" class="section">
+        <h2>Active Cloaks</h2>
+        <div id="identities-list"></div>
+      </div>
+    </div>
+
+    <!-- Create cloak view -->
+    <div id="create-view" class="view hidden">
+      <div class="header">
+        <button id="back-btn" class="btn-icon">←</button>
+        <h1>New Cloak</h1>
+      </div>
+      <div class="form-group">
+        <label for="service-name">Service</label>
+        <input type="text" id="service-name" placeholder="youtube">
+      </div>
+      <div class="form-group">
+        <label for="service-label">Label</label>
+        <input type="text" id="service-label" placeholder="YouTube">
+      </div>
+      <button id="submit-create-btn" class="btn-primary">Generate Identity</button>
+
+      <!-- Result -->
+      <div id="create-result" class="section hidden">
+        <div class="result-field">
+          <label>Email</label>
+          <code id="result-email"></code>
+        </div>
+        <div class="result-field">
+          <label>Password</label>
+          <code id="result-password"></code>
+        </div>
+        <button id="autofill-new-btn" class="btn-primary">Autofill Now</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

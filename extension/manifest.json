@@ -1,0 +1,31 @@
+{
+  "manifest_version": 3,
+  "name": "Cloak",
+  "version": "0.1.0",
+  "description": "Sovereign identity fragmentation — powered by Urbit",
+  "permissions": ["activeTab", "storage", "alarms"],
+  "host_permissions": ["<all_urls>"],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "action": {
+    "default_popup": "popup/popup.html",
+    "default_icon": {
+      "16": "icons/cloak-16.png",
+      "48": "icons/cloak-48.png",
+      "128": "icons/cloak-128.png"
+    }
+  },
+  "icons": {
+    "16": "icons/cloak-16.png",
+    "48": "icons/cloak-48.png",
+    "128": "icons/cloak-128.png"
+  }
+}
