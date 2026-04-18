@@ -3,3 +3,4 @@ dist/
 cloak/web/
 .DS_Store
 *.log
+cloak-ui/tsconfig.tsbuildinfo

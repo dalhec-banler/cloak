@@ -1,5 +1,5 @@
 /-  *cloak
-/+  *cloak, default-agent, dbug
+/+  *cloak, default-agent, dbug, server
 |%
 +$  card  card:agent:gall
 +$  state-0
@@ -47,155 +47,121 @@
       %cloak-action
     =/  a  !<(action vase)
     ?>  =(our.bowl src.bowl)
-    =^  cards=(list card)  state
-      (handle-action a)
-    [cards this]
+    ?-  -.a
+    ::
+      %create-cloak
+        =/  dom=@t
+          ?~  cf  !!
+          domain.u.cf
+        =/  iid=identity-id    (make-id eny.bowl)
+        =/  aid=alias-id       (make-id (sham [eny.bowl 'alias']))
+        =/  cid=cred-id        (make-id (sham [eny.bowl 'cred']))
+        =/  addr=@t            (make-alias-address service.a dom (sham [eny.bowl 'addr']))
+        =/  pass=@t            (make-password (sham [eny.bowl 'pass']))
+        =/  ci=cloaked-identity
+          :*  id=iid
+              service=service.a
+              label=label.a
+              status=%active
+              alias-id=aid
+              cred-id=cid
+              created=now.bowl
+              burned=~
+          ==
+        =/  al=alias
+          :*  id=aid
+              address=addr
+              identity-id=iid
+              service=service.a
+              status=%active
+          ==
+        =/  cr=credential
+          :*  id=cid
+              identity-id=iid
+              username=addr
+              password=pass
+              created=now.bowl
+          ==
+        :-  (upd-fact [%cloak-created ci al cr])
+        this(identities (~(put by identities) iid ci), aliases (~(put by aliases) aid al), credentials (~(put by credentials) cid cr))
+    ::
+      %burn-cloak
+        ?.  (~(has by identities) id.a)  `this
+        =/  ci  (~(got by identities) id.a)
+        =/  burned-ci  ci(status %burned, burned `now.bowl)
+        =/  burned-al  (~(got by aliases) alias-id.ci)
+        :-  (upd-fact [%cloak-burned id.a])
+        this(identities (~(put by identities) id.a burned-ci), aliases (~(put by aliases) alias-id.ci burned-al(status %burned)))
+    ::
+      %set-cf-config
+        =/  new-cf=cf-config
+          :*  domain=domain.a
+              api-token=api-token.a
+              account-id=account-id.a
+              worker-url=''
+              worker-secret=''
+              configured=%.n
+          ==
+        `this(cf `new-cf)
+    ::
+      %setup-cloudflare
+        ?~  cf  !!
+        =/  wsec=@t  (scot %uv (sham eny.bowl))
+        =/  new-cf  u.cf(worker-secret wsec, configured %.y)
+        :-  (upd-fact [%cf-configured new-cf])
+        this(cf `new-cf)
+    ::
+      %generate-token
+        =/  tid=token-id  (make-id eny.bowl)
+        =/  tok=@t        (scot %uv (sham [eny.bowl 'token']))
+        =/  at=api-token
+          :*  id=tid
+              token=tok
+              label=label.a
+              created=now.bowl
+              last-used=now.bowl
+          ==
+        :-  (upd-fact [%token-generated at])
+        this(tokens (~(put by tokens) tid at))
+    ::
+      %revoke-token
+        ?.  (~(has by tokens) id.a)  `this
+        :-  (upd-fact [%token-revoked id.a])
+        this(tokens (~(del by tokens) id.a))
+    ::
+      %store-verification
+        ?.  (~(has by aliases) alias-id.a)  `this
+        =/  mid=message-id  (make-id eny.bowl)
+        =/  vm=verification-message
+          :*  id=mid
+              alias-id=alias-id.a
+              from=''
+              subject=''
+              code=`code.a
+              link=~
+              raw=''
+              received=now.bowl
+          ==
+        :-  (upd-fact [%verification-received vm])
+        this(messages (~(put by messages) mid vm))
+    ::
+      %request-credentials
+        ?.  (~(has by identities) id.a)  `this
+        =/  ci  (~(got by identities) id.a)
+        =/  cr  (~(got by credentials) cred-id.ci)
+        :-  (upd-fact [%credentials-response cr])
+        this
+    ==
   ::
       %handle-http-request
     (handle-http !<([@ta inbound-request:eyre] vase))
   ==
   ::
-  ++  handle-action
-    |=  a=action
-    ^-  (quip card _state)
-    ?-  -.a
-    ::
-    ::  create a new cloaked identity
-    ::
-        %create-cloak
-      =/  dom=@t
-        ?~  cf  !!
-        domain.u.cf
-      =/  iid=identity-id    (make-id eny.bowl)
-      =/  aid=alias-id       (make-id (sham [eny.bowl 'alias']))
-      =/  cid=cred-id        (make-id (sham [eny.bowl 'cred']))
-      =/  addr=@t            (make-alias-address service.a dom (sham [eny.bowl 'addr']))
-      =/  pass=@t            (make-password (sham [eny.bowl 'pass']))
-      =/  ci=cloaked-identity
-        :*  id=iid
-            service=service.a
-            label=label.a
-            status=%active
-            alias-id=aid
-            cred-id=cid
-            created=now.bowl
-            burned=~
-        ==
-      =/  al=alias
-        :*  id=aid
-            address=addr
-            identity-id=iid
-            service=service.a
-            status=%active
-        ==
-      =/  cr=credential
-        :*  id=cid
-            identity-id=iid
-            username=addr
-            password=pass
-            created=now.bowl
-        ==
-      =/  new-state
-        %_  state
-          identities  (~(put by identities) iid ci)
-          aliases     (~(put by aliases) aid al)
-          credentials (~(put by credentials) cid cr)
-        ==
-      :-  (fact-update [%cloak-created ci al cr])
-      new-state
-    ::
-    ::  burn (revoke) a cloaked identity
-    ::
-        %burn-cloak
-      ?.  (~(has by identities) id.a)  `state
-      =/  ci  (~(got by identities) id.a)
-      =/  burned-ci  ci(status %burned, burned `now.bowl)
-      =/  burned-al  (~(got by aliases) alias-id.ci)
-      =/  new-state
-        %_  state
-          identities  (~(put by identities) id.a burned-ci)
-          aliases     (~(put by aliases) alias-id.ci burned-al(status %burned))
-        ==
-      :-  (fact-update [%cloak-burned id.a])
-      new-state
-    ::
-    ::  store cloudflare configuration
-    ::
-        %set-cf-config
-      =/  new-cf=cf-config
-        :*  domain=domain.a
-            api-token=api-token.a
-            account-id=account-id.a
-            worker-url=''
-            worker-secret=''
-            configured=%.n
-        ==
-      `state(cf `new-cf)
-    ::
-    ::  trigger cloudflare setup via %iris
-    ::  step 1: look up zone ID for the domain
-    ::
-        %setup-cloudflare
-      ?~  cf  !!
-      =/  wsec=@t  (scot %uv (sham eny.bowl))
-      =/  new-cf  u.cf(worker-secret wsec)
-      =/  url=@t
-        (crip (weld "https://api.cloudflare.com/client/v4/zones?name=" (trip domain.u.cf)))
-      :_  state(cf `new-cf)
-      :~  (cf-request /cf-setup/zone-lookup url %'GET' ~)
-      ==
-    ::
-    ::  generate extension API token
-    ::
-        %generate-token
-      =/  tid=token-id  (make-id eny.bowl)
-      =/  tok=@t        (scot %uv (sham [eny.bowl 'token']))
-      =/  at=api-token
-        :*  id=tid
-            token=tok
-            label=label.a
-            created=now.bowl
-            last-used=now.bowl
-        ==
-      :-  (fact-update [%token-generated at])
-      state(tokens (~(put by tokens) tid at))
-    ::
-    ::  revoke extension API token
-    ::
-        %revoke-token
-      ?.  (~(has by tokens) id.a)  `state
-      :-  (fact-update [%token-revoked id.a])
-      state(tokens (~(del by tokens) id.a))
-    ::
-    ::  store a verification code from the extension
-    ::
-        %store-verification
-      ?.  (~(has by aliases) alias-id.a)  `state
-      =/  mid=message-id  (make-id eny.bowl)
-      =/  vm=verification-message
-        :*  id=mid
-            alias-id=alias-id.a
-            from=''
-            subject=''
-            code=`code.a
-            link=~
-            raw=''
-            received=now.bowl
-        ==
-      :-  (fact-update [%verification-received vm])
-      state(messages (~(put by messages) mid vm))
-    ::
-    ::  request credentials for an identity (extension use)
-    ::
-        %request-credentials
-      ?.  (~(has by identities) id.a)  `state
-      =/  ci  (~(got by identities) id.a)
-      =/  cr  (~(got by credentials) cred-id.ci)
-      :-  (fact-update [%credentials-response cr])
-      state
+  ++  upd-fact
+    |=  upd=update
+    ^-  (list card)
+    :~  [%give %fact ~[/updates] %cloak-update !>(upd)]
     ==
-  ::
-  ::  HTTP request handler for extension API
   ::
   ++  handle-http
     |=  [rid=@ta req=inbound-request:eyre]
@@ -285,7 +251,6 @@
       =/  tok-list=(list json)
         %+  turn  ~(val by tokens)
         |=  t=api-token
-        ::  don't expose the actual token value in list view
         %-  pairs:enjs:format
         :~  ['id' (numb:enjs:format `@ud`id.t)]
             ['label' s+label.t]
@@ -368,103 +333,8 @@
   ?+  wire  (on-arvo:def wire sign-arvo)
       [%bind-api ~]
     `this
-  ::
-  ::  cloudflare setup — multi-step %iris chain
-  ::
-      [%cf-setup %zone-lookup ~]
-    ?>  ?=([%iris %http-response %finished *] sign-arvo)
-    ?~  full-file.client-response.sign-arvo  `this
-    =/  body=@t  q.data.u.full-file.client-response.sign-arvo
-    =/  jon=(unit json)  (de:json:html body)
-    ?~  jon  `this
-    =/  result  u.jon
-    ::  extract zone ID from response: {"result":[{"id":"..."}]}
-    =/  zone-id=(unit @t)
-      =/  res=(unit json)  (~(get by ?>(?=(%o -.result) p.result)) 'result')
-      ?~  res  ~
-      ?.  ?=(%a -.u.res)  ~
-      ?~  p.u.res  ~
-      ?.  ?=(%o -.i.p.u.res)  ~
-      =/  id-json=(unit json)  (~(get by p.i.p.u.res) 'id')
-      ?~  id-json  ~
-      ?.  ?=(%s -.u.id-json)  ~
-      `p.u.id-json
-    ?~  zone-id  `this
-    ::  step 2: set MX records for email routing
-    ?~  cf  `this
-    =/  mx-url=@t
-      (crip (weld "https://api.cloudflare.com/client/v4/zones/" (weld (trip u.zone-id) "/dns_records")))
-    =/  mx-body=@t
-      (crip (weld "{\"type\":\"MX\",\"name\":\"" (weld (trip domain.u.cf) "\",\"content\":\"route1.mx.cloudflare.net\",\"priority\":36,\"ttl\":1}")))
-    :_  this
-    :~  (cf-request /cf-setup/mx-record/(scot %t u.zone-id) mx-url %'POST' `mx-body)
-    ==
-  ::
-      [%cf-setup %mx-record @t ~]
-    ?>  ?=([%iris %http-response %finished *] sign-arvo)
-    =/  zone-id=@t  (slav %t i.t.t.wire)
-    ?~  cf  `this
-    ::  step 3: create KV namespace
-    =/  kv-url=@t
-      (crip (weld "https://api.cloudflare.com/client/v4/accounts/" (weld (trip account-id.u.cf) "/storage/kv/namespaces")))
-    =/  kv-body=@t  '{"title":"cloak-mail"}'
-    :_  this
-    :~  (cf-request /cf-setup/kv-create/(scot %t zone-id) kv-url %'POST' `kv-body)
-    ==
-  ::
-      [%cf-setup %kv-create @t ~]
-    ?>  ?=([%iris %http-response %finished *] sign-arvo)
-    =/  zone-id=@t  (slav %t i.t.t.wire)
-    ?~  full-file.client-response.sign-arvo  `this
-    =/  body=@t  q.data.u.full-file.client-response.sign-arvo
-    =/  jon=(unit json)  (de:json:html body)
-    ?~  jon  `this
-    ::  extract KV namespace ID from response
-    =/  kv-id=(unit @t)
-      =/  res=(unit json)  (~(get by ?>(?=(%o -.u.jon) p.u.jon)) 'result')
-      ?~  res  ~
-      ?.  ?=(%o -.u.res)  ~
-      =/  id-json=(unit json)  (~(get by p.u.res) 'id')
-      ?~  id-json  ~
-      ?.  ?=(%s -.u.id-json)  ~
-      `p.u.id-json
-    ?~  kv-id  `this
-    ?~  cf  `this
-    ::  step 4: deploy worker with KV binding
-    =/  worker-url=@t
-      (crip (weld "https://api.cloudflare.com/client/v4/accounts/" (weld (trip account-id.u.cf) "/workers/scripts/cloak-mail")))
-    ::  worker script is deployed from the frontend as a separate step
-    ::  for now, mark setup as configured with the worker URL pattern
-    =/  wurl=@t
-      (crip (weld "https://cloak-mail." (weld (trip account-id.u.cf) ".workers.dev")))
-    =/  new-cf  u.cf(worker-url wurl, configured %.y)
-    :-  (fact-update [%cf-configured new-cf])
-    this(cf `new-cf)
   ==
 ::
 ++  on-leave  on-leave:def
 ++  on-fail   on-fail:def
-::
-::  helper: emit update fact on /updates path
-::
-++  fact-update
-  |=  upd=update
-  ^-  (list card)
-  :~  [%give %fact ~[/updates] %cloak-update !>(upd)]
-  ==
-::
-::  helper: build an authenticated %iris request to Cloudflare API
-::
-++  cf-request
-  |=  [=wire url=@t method=@t body=(unit @t)]
-  ^-  card
-  ?~  cf  !!
-  =/  headers=(list [key=@t value=@t])
-    :~  ['Authorization' (crip (weld "Bearer " (trip api-token.u.cf)))]
-        ['Content-Type' 'application/json']
-    ==
-  =/  bod=(unit octs)
-    ?~  body  ~
-    `(as-octs:mimes:html u.body)
-  [%pass wire %arvo %i %request [method url headers bod]]
 --
