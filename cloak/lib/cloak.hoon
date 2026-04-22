@@ -41,6 +41,48 @@
   =/  idx=@  (mod (rsh [3 i] rand) len)
   $(i +(i), out (snoc out (snag idx chars)))
 ::
+::  build Cloudflare API auth headers
+::
+++  cf-headers
+  |=  tok=@t
+  ^-  (list [key=@t value=@t])
+  :~  ['authorization' (cat 3 'Bearer ' tok)]
+      ['content-type' 'application/json']
+  ==
+::
+::  extract zone ID from CF /zones response
+::  response: {"result": [{"id": "abc123", ...}], ...}
+::
+++  get-zone-id
+  |=  jon=json
+  ^-  (unit @t)
+  ?.  ?=(%o -.jon)  ~
+  =/  result  (~(get by p.jon) 'result')
+  ?~  result  ~
+  ?.  ?=(%a -.u.result)  ~
+  ?~  p.u.result  ~
+  =/  first=json  i.p.u.result
+  ?.  ?=(%o -.first)  ~
+  =/  zid  (~(get by p.first) 'id')
+  ?~  zid  ~
+  ?.  ?=(%s -.u.zid)  ~
+  `p.u.zid
+::
+::  extract result.id from CF API response
+::  response: {"result": {"id": "abc123"}, ...}
+::
+++  get-result-id
+  |=  jon=json
+  ^-  (unit @t)
+  ?.  ?=(%o -.jon)  ~
+  =/  result  (~(get by p.jon) 'result')
+  ?~  result  ~
+  ?.  ?=(%o -.u.result)  ~
+  =/  rid  (~(get by p.u.result) 'id')
+  ?~  rid  ~
+  ?.  ?=(%s -.u.rid)  ~
+  `p.u.rid
+::
 ::  JSON serialization helpers
 ::
 ++  enjs
@@ -110,7 +152,10 @@
     ^-  json
     %-  pairs
     :~  ['domain' (sect domain.c)]
+        ['zoneId' (sect zone-id.c)]
+        ['kvId' (sect kv-id.c)]
         ['workerUrl' (sect worker-url.c)]
+        ['workerSecret' (sect worker-secret.c)]
         ['configured' b+configured.c]
     ==
   ::
@@ -134,6 +179,7 @@
         [%burn-cloak (ot ~[id+ni])]
         [%set-cf-config (ot ~[domain+so api-token+so account-id+so])]
         [%setup-cloudflare ul]
+        [%set-worker-url (ot ~[url+so])]
         [%generate-token (ot ~[label+so])]
         [%revoke-token (ot ~[id+ni])]
         [%store-verification (ot ~[alias-id+ni code+so])]

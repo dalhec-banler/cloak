@@ -58,6 +58,8 @@
   $:  domain=@t
       api-token=@t
       account-id=@t
+      zone-id=@t
+      kv-id=@t
       worker-url=@t
       worker-secret=@t
       configured=?
@@ -82,6 +84,7 @@
       ::  cloudflare setup
       [%set-cf-config domain=@t api-token=@t account-id=@t]
       [%setup-cloudflare ~]
+      [%set-worker-url url=@t]
       ::  extension auth
       [%generate-token label=@t]
       [%revoke-token id=token-id]
@@ -97,6 +100,7 @@
   $%  [%cloak-created =cloaked-identity =alias =credential]
       [%cloak-burned id=identity-id]
       [%cf-configured =cf-config]
+      [%cf-setup-error msg=@t]
       [%token-generated =api-token]
       [%token-revoked id=token-id]
       [%verification-received =verification-message]

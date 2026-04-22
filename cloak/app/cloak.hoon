@@ -98,6 +98,8 @@
           :*  domain=domain.a
               api-token=api-token.a
               account-id=account-id.a
+              zone-id=''
+              kv-id=''
               worker-url=''
               worker-secret=''
               configured=%.n
@@ -107,7 +109,17 @@
       %setup-cloudflare
         ?~  cf  !!
         =/  wsec=@t  (scot %uv (sham eny.bowl))
-        =/  new-cf  u.cf(worker-secret wsec, configured %.y)
+        =/  new-cf  u.cf(worker-secret wsec)
+        =/  url=@t
+          (cat 3 'https://api.cloudflare.com/client/v4/zones?name=' domain.u.cf)
+        =/  =request:http
+          [method=%'GET' url=url header-list=(cf-headers api-token.u.cf) body=~]
+        :-  ~[[%pass /cf-setup/zone-lookup %arvo %i %request request ~]]
+        this(cf `new-cf)
+    ::
+      %set-worker-url
+        ?~  cf  !!
+        =/  new-cf  u.cf(worker-url url.a)
         :-  (upd-fact [%cf-configured new-cf])
         this(cf `new-cf)
     ::
@@ -327,13 +339,108 @@
   ==
 ::
 ++  on-agent  on-agent:def
+::
 ++  on-arvo
   |=  [=wire =sign-arvo]
   ^-  (quip card _this)
+  |^
   ?+  wire  (on-arvo:def wire sign-arvo)
       [%bind-api ~]
     `this
+  ::
+  ::  cloudflare setup step 1: zone lookup response
+  ::
+      [%cf-setup %zone-lookup ~]
+    =/  jon=(unit json)  (parse-iris-body sign-arvo)
+    ?~  jon
+      ~&  %cf-zone-lookup-failed
+      :-  (upd-fact [%cf-setup-error 'zone lookup failed - no response'])
+      this
+    =/  zid=(unit @t)  (get-zone-id u.jon)
+    ?~  zid
+      ~&  %cf-zone-not-found
+      :-  (upd-fact [%cf-setup-error 'domain not found in cloudflare account'])
+      this
+    ?~  cf  `this
+    ::  store zone-id and fire KV namespace creation
+    =/  new-cf  u.cf(zone-id u.zid)
+    =/  url=@t
+      %+  cat  3
+        (cat 3 'https://api.cloudflare.com/client/v4/accounts/' account-id.u.cf)
+      '/storage/kv/namespaces'
+    =/  body=@t  '{"title":"CLOAK_KV"}'
+    =/  =request:http
+      :*  method=%'POST'
+          url=url
+          header-list=(cf-headers api-token.u.cf)
+          body=(some (as-octs:mimes:html body))
+      ==
+    :-  ~[[%pass /cf-setup/kv-create %arvo %i %request request ~]]
+    this(cf `new-cf)
+  ::
+  ::  cloudflare setup step 2: KV namespace created
+  ::
+      [%cf-setup %kv-create ~]
+    =/  jon=(unit json)  (parse-iris-body sign-arvo)
+    ?~  jon
+      ~&  %cf-kv-create-failed
+      :-  (upd-fact [%cf-setup-error 'kv namespace creation failed'])
+      this
+    =/  kid=(unit @t)  (get-result-id u.jon)
+    ?~  kid
+      ~&  %cf-kv-id-missing
+      :-  (upd-fact [%cf-setup-error 'could not get kv namespace id'])
+      this
+    ?~  cf  `this
+    ::  store kv-id and fire email routing setup
+    =/  new-cf  u.cf(kv-id u.kid)
+    =/  url=@t
+      %+  cat  3
+        (cat 3 'https://api.cloudflare.com/client/v4/zones/' zone-id.u.cf)
+      '/email/routing/rules'
+    =/  body=@t
+      '{"matchers":[{"type":"all"}],"actions":[{"type":"worker","value":["cloak-mail"]}],"enabled":true,"name":"Cloak catch-all"}'
+    =/  =request:http
+      :*  method=%'POST'
+          url=url
+          header-list=(cf-headers api-token.u.cf)
+          body=(some (as-octs:mimes:html body))
+      ==
+    :-  ~[[%pass /cf-setup/email-route %arvo %i %request request ~]]
+    this(cf `new-cf)
+  ::
+  ::  cloudflare setup step 3: email routing configured
+  ::
+      [%cf-setup %email-route ~]
+    =/  jon=(unit json)  (parse-iris-body sign-arvo)
+    ?~  jon
+      ~&  %cf-email-route-failed
+      :-  (upd-fact [%cf-setup-error 'email routing setup failed'])
+      this
+    ?~  cf  `this
+    ::  mark as configured
+    =/  new-cf  u.cf(configured %.y)
+    ~&  [%cf-setup-complete domain.u.cf]
+    :-  (upd-fact [%cf-configured new-cf])
+    this(cf `new-cf)
   ==
+  ::
+  ++  upd-fact
+    |=  upd=update
+    ^-  (list card)
+    :~  [%give %fact ~[/updates] %cloak-update !>(upd)]
+    ==
+  ::
+  ++  parse-iris-body
+    |=  =sign-arvo
+    ^-  (unit json)
+    ?.  ?=([%iris %http-response *] sign-arvo)  ~
+    =/  =client-response:iris  +.+.sign-arvo
+    ?.  ?=(%finished -.client-response)  ~
+    ?~  full-file.client-response  ~
+    =/  body=@t  `@t`q.q.u.full-file.client-response
+    (de:json:html body)
+  --
 ::
 ++  on-leave  on-leave:def
 ++  on-fail   on-fail:def

@@ -29,6 +29,11 @@
         :~  ['type' s+'cfConfigured']
             ['config' (cf-conf:enjs cf-config.upd)]
         ==
+      %cf-setup-error
+        %-  pairs
+        :~  ['type' s+'cfSetupError']
+            ['msg' s+msg.upd]
+        ==
       %token-generated
         %-  pairs
         :~  ['type' s+'tokenGenerated']
