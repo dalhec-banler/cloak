@@ -82,7 +82,7 @@
               password=pass
               created=now.bowl
           ==
-        :-  (upd-fact [%cloak-created ci al cr])
+        :-  (send-update [%cloak-created ci al cr])
         this(identities (~(put by identities) iid ci), aliases (~(put by aliases) aid al), credentials (~(put by credentials) cid cr))
     ::
       %burn-cloak
@@ -90,7 +90,7 @@
         =/  ci  (~(got by identities) id.a)
         =/  burned-ci  ci(status %burned, burned `now.bowl)
         =/  burned-al  (~(got by aliases) alias-id.ci)
-        :-  (upd-fact [%cloak-burned id.a])
+        :-  (send-update [%cloak-burned id.a])
         this(identities (~(put by identities) id.a burned-ci), aliases (~(put by aliases) alias-id.ci burned-al(status %burned)))
     ::
       %set-cf-config
@@ -114,13 +114,13 @@
           (cat 3 'https://api.cloudflare.com/client/v4/zones?name=' domain.u.cf)
         =/  =request:http
           [method=%'GET' url=url header-list=(cf-headers api-token.u.cf) body=~]
-        :-  ~[[%pass /cf-setup/zone-lookup %arvo %i %request request ~]]
+        :-  ~[[%pass /cf-setup/zone-lookup %arvo %i %request request *outbound-config:iris]]
         this(cf `new-cf)
     ::
       %set-worker-url
         ?~  cf  !!
         =/  new-cf  u.cf(worker-url url.a)
-        :-  (upd-fact [%cf-configured new-cf])
+        :-  (send-update [%cf-configured new-cf])
         this(cf `new-cf)
     ::
       %generate-token
@@ -133,12 +133,12 @@
               created=now.bowl
               last-used=now.bowl
           ==
-        :-  (upd-fact [%token-generated at])
+        :-  (send-update [%token-generated at])
         this(tokens (~(put by tokens) tid at))
     ::
       %revoke-token
         ?.  (~(has by tokens) id.a)  `this
-        :-  (upd-fact [%token-revoked id.a])
+        :-  (send-update [%token-revoked id.a])
         this(tokens (~(del by tokens) id.a))
     ::
       %store-verification
@@ -154,14 +154,14 @@
               raw=''
               received=now.bowl
           ==
-        :-  (upd-fact [%verification-received vm])
+        :-  (send-update [%verification-received vm])
         this(messages (~(put by messages) mid vm))
     ::
       %request-credentials
         ?.  (~(has by identities) id.a)  `this
         =/  ci  (~(got by identities) id.a)
         =/  cr  (~(got by credentials) cred-id.ci)
-        :-  (upd-fact [%credentials-response cr])
+        :-  (send-update [%credentials-response cr])
         this
     ==
   ::
@@ -169,7 +169,7 @@
     (handle-http !<([@ta inbound-request:eyre] vase))
   ==
   ::
-  ++  upd-fact
+  ++  send-update
     |=  upd=update
     ^-  (list card)
     :~  [%give %fact ~[/updates] %cloak-update !>(upd)]
@@ -261,24 +261,129 @@
     ::
         [%cloak-api %tokens ~]
       =/  tok-list=(list json)
-        %+  turn  ~(val by tokens)
-        |=  t=api-token
-        %-  pairs:enjs:format
-        :~  ['id' (numb:enjs:format `@ud`id.t)]
-            ['label' s+label.t]
-            ['created' s+(scot %da created.t)]
-            ['lastUsed' s+(scot %da last-used.t)]
-        ==
+        (turn ~(val by tokens) token:enjs)
       :_  this
       (give-http rid 200 (some (as-octs:mimes:html (en:json:html a+tok-list))))
+    ::
+    ::  POST /cloak-api/create — create a cloak via HTTP
+    ::
+        [%cloak-api %create ~]
+      ?.  =(method.request.req 'POST')
+        :_  this
+        (give-http rid 405 (some (as-octs:mimes:html '{"error":"method not allowed"}')))
+      ?~  body.request.req
+        :_  this
+        (give-http rid 400 (some (as-octs:mimes:html '{"error":"missing body"}')))
+      ?~  cf
+        :_  this
+        (give-http rid 400 (some (as-octs:mimes:html '{"error":"not configured"}')))
+      =/  bod=@t  `@t`q.u.body.request.req
+      =/  jon=(unit json)  (de:json:html bod)
+      ?~  jon
+        :_  this
+        (give-http rid 400 (some (as-octs:mimes:html '{"error":"invalid json"}')))
+      ?.  ?=(%o -.u.jon)
+        :_  this
+        (give-http rid 400 (some (as-octs:mimes:html '{"error":"expected object"}')))
+      =/  svc  (~(get by p.u.jon) 'service')
+      =/  lab  (~(get by p.u.jon) 'label')
+      ?~  svc
+        :_  this
+        (give-http rid 400 (some (as-octs:mimes:html '{"error":"missing service"}')))
+      ?~  lab
+        :_  this
+        (give-http rid 400 (some (as-octs:mimes:html '{"error":"missing label"}')))
+      ?.  &(?=(%s -.u.svc) ?=(%s -.u.lab))
+        :_  this
+        (give-http rid 400 (some (as-octs:mimes:html '{"error":"invalid fields"}')))
+      =/  service=@t  p.u.svc
+      =/  label=@t    p.u.lab
+      =/  dom=@t  domain.u.cf
+      =/  iid=identity-id    (make-id eny.bowl)
+      =/  aid=alias-id       (make-id (sham [eny.bowl 'alias']))
+      =/  cid=cred-id        (make-id (sham [eny.bowl 'cred']))
+      =/  addr=@t            (make-alias-address service dom (sham [eny.bowl 'addr']))
+      =/  pass=@t            (make-password (sham [eny.bowl 'pass']))
+      =/  ci=cloaked-identity
+        :*  id=iid
+            service=service
+            label=label
+            status=%active
+            alias-id=aid
+            cred-id=cid
+            created=now.bowl
+            burned=~
+        ==
+      =/  al=alias
+        :*  id=aid
+            address=addr
+            identity-id=iid
+            service=service
+            status=%active
+        ==
+      =/  cr=credential
+        :*  id=cid
+            identity-id=iid
+            username=addr
+            password=pass
+            created=now.bowl
+        ==
+      =/  res=json
+        %-  pairs:enjs:format
+        :~  ['identity' (identity:enjs ci)]
+            ['alias' (ali:enjs al)]
+            ['credential' (cred:enjs cr)]
+        ==
+      :-  %+  weld
+            (send-update [%cloak-created ci al cr])
+          (give-http rid 200 (some (as-octs:mimes:html (en:json:html res))))
+      this(identities (~(put by identities) iid ci), aliases (~(put by aliases) aid al), credentials (~(put by credentials) cid cr))
+    ::
+    ::  POST /cloak-api/burn — burn a cloak via HTTP
+    ::
+        [%cloak-api %burn ~]
+      ?.  =(method.request.req 'POST')
+        :_  this
+        (give-http rid 405 (some (as-octs:mimes:html '{"error":"method not allowed"}')))
+      ?~  body.request.req
+        :_  this
+        (give-http rid 400 (some (as-octs:mimes:html '{"error":"missing body"}')))
+      =/  bod=@t  `@t`q.u.body.request.req
+      =/  jon=(unit json)  (de:json:html bod)
+      ?~  jon
+        :_  this
+        (give-http rid 400 (some (as-octs:mimes:html '{"error":"invalid json"}')))
+      ?.  ?=(%o -.u.jon)
+        :_  this
+        (give-http rid 400 (some (as-octs:mimes:html '{"error":"expected object"}')))
+      =/  raw-id  (~(get by p.u.jon) 'id')
+      ?~  raw-id
+        :_  this
+        (give-http rid 400 (some (as-octs:mimes:html '{"error":"missing id"}')))
+      ?.  ?=(%s -.u.raw-id)
+        :_  this
+        (give-http rid 400 (some (as-octs:mimes:html '{"error":"invalid id"}')))
+      =/  id=identity-id  `@uvH`(slav %uv p.u.raw-id)
+      ?.  (~(has by identities) id)
+        :_  this
+        (give-http rid 404 (some (as-octs:mimes:html '{"error":"not found"}')))
+      =/  ci  (~(got by identities) id)
+      =/  burned-ci  ci(status %burned, burned `now.bowl)
+      =/  burned-al  (~(got by aliases) alias-id.ci)
+      :-  %+  weld
+            (send-update [%cloak-burned id])
+          (give-http rid 200 (some (as-octs:mimes:html '{"ok":true}')))
+      this(identities (~(put by identities) id burned-ci), aliases (~(put by aliases) alias-id.ci burned-al(status %burned)))
     ==
   ::
   ++  give-http
     |=  [rid=@ta code=@ud body=(unit octs)]
     ^-  (list card)
-    =/  content-type  ['content-type' 'application/json']
-    =/  cors          ['access-control-allow-origin' '*']
-    =/  headers       ~[content-type cors]
+    =/  content-type   ['content-type' 'application/json']
+    =/  cors           ['access-control-allow-origin' '*']
+    =/  cors-methods   ['access-control-allow-methods' 'GET, POST, OPTIONS']
+    =/  cors-headers   ['access-control-allow-headers' 'authorization, content-type']
+    =/  headers        ~[content-type cors cors-methods cors-headers]
     :~  [%give %fact ~[/http-response/[rid]] %http-response-header !>([code headers])]
         [%give %fact ~[/http-response/[rid]] %http-response-data !>(body)]
         [%give %kick ~[/http-response/[rid]] ~]
@@ -312,6 +417,20 @@
     =/  ci  (~(got by identities) id)
     ``json+!>((identity:enjs ci))
   ::
+      [%x %full-identity @t ~]
+    =/  id=identity-id  `@uvH`(slav %uv i.t.t.path)
+    ?.  (~(has by identities) id)  ~
+    =/  ci  (~(got by identities) id)
+    =/  al  (~(got by aliases) alias-id.ci)
+    =/  cr  (~(got by credentials) cred-id.ci)
+    =/  res=json
+      %-  pairs:enjs:format
+      :~  ['identity' (identity:enjs ci)]
+          ['alias' (ali:enjs al)]
+          ['credential' (cred:enjs cr)]
+      ==
+    ``json+!>(res)
+  ::
       [%x %aliases ~]
     =/  al-list=(list json)
       (turn ~(val by aliases) ali:enjs)
@@ -343,104 +462,65 @@
 ++  on-arvo
   |=  [=wire =sign-arvo]
   ^-  (quip card _this)
-  |^
   ?+  wire  (on-arvo:def wire sign-arvo)
       [%bind-api ~]
     `this
   ::
-  ::  cloudflare setup step 1: zone lookup response
-  ::
       [%cf-setup %zone-lookup ~]
-    =/  jon=(unit json)  (parse-iris-body sign-arvo)
+    =/  jon=(unit json)  (extract-iris-json sign-arvo)
     ?~  jon
       ~&  %cf-zone-lookup-failed
-      :-  (upd-fact [%cf-setup-error 'zone lookup failed - no response'])
+      :-  ~[[%give %fact ~[/updates] %cloak-update !>(`update`[%cf-setup-error 'zone lookup failed'])]]
       this
     =/  zid=(unit @t)  (get-zone-id u.jon)
     ?~  zid
       ~&  %cf-zone-not-found
-      :-  (upd-fact [%cf-setup-error 'domain not found in cloudflare account'])
+      :-  ~[[%give %fact ~[/updates] %cloak-update !>(`update`[%cf-setup-error 'domain not found'])]]
       this
     ?~  cf  `this
-    ::  store zone-id and fire KV namespace creation
     =/  new-cf  u.cf(zone-id u.zid)
     =/  url=@t
-      %+  cat  3
-        (cat 3 'https://api.cloudflare.com/client/v4/accounts/' account-id.u.cf)
-      '/storage/kv/namespaces'
-    =/  body=@t  '{"title":"CLOAK_KV"}'
+      (cat 3 (cat 3 'https://api.cloudflare.com/client/v4/accounts/' account-id.u.cf) '/storage/kv/namespaces')
+    =/  req-body=@t  '{"title":"CLOAK_KV"}'
     =/  =request:http
-      :*  method=%'POST'
-          url=url
-          header-list=(cf-headers api-token.u.cf)
-          body=(some (as-octs:mimes:html body))
-      ==
-    :-  ~[[%pass /cf-setup/kv-create %arvo %i %request request ~]]
+      [method=%'POST' url=url header-list=(cf-headers api-token.u.cf) body=(some (as-octs:mimes:html req-body))]
+    :-  ~[[%pass /cf-setup/kv-create %arvo %i %request request *outbound-config:iris]]
     this(cf `new-cf)
   ::
-  ::  cloudflare setup step 2: KV namespace created
-  ::
       [%cf-setup %kv-create ~]
-    =/  jon=(unit json)  (parse-iris-body sign-arvo)
+    =/  jon=(unit json)  (extract-iris-json sign-arvo)
     ?~  jon
       ~&  %cf-kv-create-failed
-      :-  (upd-fact [%cf-setup-error 'kv namespace creation failed'])
+      :-  ~[[%give %fact ~[/updates] %cloak-update !>(`update`[%cf-setup-error 'kv creation failed'])]]
       this
     =/  kid=(unit @t)  (get-result-id u.jon)
     ?~  kid
       ~&  %cf-kv-id-missing
-      :-  (upd-fact [%cf-setup-error 'could not get kv namespace id'])
+      :-  ~[[%give %fact ~[/updates] %cloak-update !>(`update`[%cf-setup-error 'kv id missing'])]]
       this
     ?~  cf  `this
-    ::  store kv-id and fire email routing setup
     =/  new-cf  u.cf(kv-id u.kid)
     =/  url=@t
-      %+  cat  3
-        (cat 3 'https://api.cloudflare.com/client/v4/zones/' zone-id.u.cf)
-      '/email/routing/rules'
-    =/  body=@t
+      (cat 3 (cat 3 'https://api.cloudflare.com/client/v4/zones/' zone-id.u.cf) '/email/routing/rules')
+    =/  req-body=@t
       '{"matchers":[{"type":"all"}],"actions":[{"type":"worker","value":["cloak-mail"]}],"enabled":true,"name":"Cloak catch-all"}'
     =/  =request:http
-      :*  method=%'POST'
-          url=url
-          header-list=(cf-headers api-token.u.cf)
-          body=(some (as-octs:mimes:html body))
-      ==
-    :-  ~[[%pass /cf-setup/email-route %arvo %i %request request ~]]
+      [method=%'POST' url=url header-list=(cf-headers api-token.u.cf) body=(some (as-octs:mimes:html req-body))]
+    :-  ~[[%pass /cf-setup/email-route %arvo %i %request request *outbound-config:iris]]
     this(cf `new-cf)
-  ::
-  ::  cloudflare setup step 3: email routing configured
   ::
       [%cf-setup %email-route ~]
-    =/  jon=(unit json)  (parse-iris-body sign-arvo)
+    =/  jon=(unit json)  (extract-iris-json sign-arvo)
     ?~  jon
       ~&  %cf-email-route-failed
-      :-  (upd-fact [%cf-setup-error 'email routing setup failed'])
+      :-  ~[[%give %fact ~[/updates] %cloak-update !>(`update`[%cf-setup-error 'email route failed'])]]
       this
     ?~  cf  `this
-    ::  mark as configured
     =/  new-cf  u.cf(configured %.y)
     ~&  [%cf-setup-complete domain.u.cf]
-    :-  (upd-fact [%cf-configured new-cf])
+    :-  ~[[%give %fact ~[/updates] %cloak-update !>(`update`[%cf-configured new-cf])]]
     this(cf `new-cf)
   ==
-  ::
-  ++  upd-fact
-    |=  upd=update
-    ^-  (list card)
-    :~  [%give %fact ~[/updates] %cloak-update !>(upd)]
-    ==
-  ::
-  ++  parse-iris-body
-    |=  =sign-arvo
-    ^-  (unit json)
-    ?.  ?=([%iris %http-response *] sign-arvo)  ~
-    =/  =client-response:iris  +.+.sign-arvo
-    ?.  ?=(%finished -.client-response)  ~
-    ?~  full-file.client-response  ~
-    =/  body=@t  `@t`q.q.u.full-file.client-response
-    (de:json:html body)
-  --
 ::
 ++  on-leave  on-leave:def
 ++  on-fail   on-fail:def

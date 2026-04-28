@@ -3,11 +3,12 @@ import type { CfConfig } from '../types';
 
 interface Props {
   config: CfConfig | null;
+  error: string | null;
   onSubmit: (domain: string, apiToken: string, accountId: string) => Promise<void>;
   onBack: () => void;
 }
 
-export default function SetupWizard({ config, onSubmit, onBack }: Props) {
+export default function SetupWizard({ config, error, onSubmit, onBack }: Props) {
   const [domain, setDomain] = useState(config?.domain ?? '');
   const [apiToken, setApiToken] = useState('');
   const [accountId, setAccountId] = useState('');
@@ -174,22 +175,42 @@ export default function SetupWizard({ config, onSubmit, onBack }: Props) {
         </div>
       )}
 
-      {/* Step 3: Done */}
+      {/* Step 3: Waiting / Result */}
       {step === 3 && (
         <div className="max-w-md text-center py-8">
-          <div className="w-12 h-12 rounded-full bg-success-soft border border-success/30 flex items-center justify-center mx-auto mb-4">
-            <span className="text-success text-xl">✓</span>
-          </div>
-          <h3 className="text-white font-medium mb-2">Email configured</h3>
-          <p className="text-sm text-muted mb-6">
-            Your domain is set up and ready to receive verification emails.
-          </p>
-          <button
-            onClick={onBack}
-            className="px-6 py-2.5 bg-accent text-white text-sm font-medium rounded-lg hover:bg-accent/80 transition-colors"
-          >
-            Start Creating Cloaks
-          </button>
+          {error ? (
+            <>
+              <h3 className="text-white font-medium mb-2">Setup failed</h3>
+              <p className="text-sm text-red-400 mb-6">{error}</p>
+              <button
+                onClick={() => setStep(2)}
+                className="px-6 py-2.5 bg-accent text-white text-sm font-medium rounded-lg hover:bg-accent/80 transition-colors"
+              >
+                Try Again
+              </button>
+            </>
+          ) : config?.configured ? (
+            <>
+              <div className="w-12 h-12 rounded-full bg-success-soft border border-success/30 flex items-center justify-center mx-auto mb-4">
+                <span className="text-success text-xl">✓</span>
+              </div>
+              <h3 className="text-white font-medium mb-2">Email configured</h3>
+              <p className="text-sm text-muted mb-6">
+                Your domain is set up and ready to receive verification emails.
+              </p>
+              <button
+                onClick={onBack}
+                className="px-6 py-2.5 bg-accent text-white text-sm font-medium rounded-lg hover:bg-accent/80 transition-colors"
+              >
+                Start Creating Cloaks
+              </button>
+            </>
+          ) : (
+            <>
+              <p className="text-sm text-muted mb-2">Setting up Cloudflare...</p>
+              <p className="text-xs text-faint">Zone lookup → KV namespace → Email routing</p>
+            </>
+          )}
         </div>
       )}
 

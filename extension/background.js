@@ -40,29 +40,9 @@ async function shipRequest(path, method = 'GET', body = null) {
   return res.json();
 }
 
-async function pokeShip(action) {
-  const config = await getConfig();
-  if (!config) throw new Error('Not connected to ship');
-
-  const res = await fetch(`${config.shipUrl}/~/channel/cloak-${Date.now()}`, {
-    method: 'PUT',
-    headers: {
-      'Content-Type': 'application/json',
-      Cookie: `urbauth-~${config.apiToken}`,
-    },
-    body: JSON.stringify([
-      {
-        id: 1,
-        action: 'poke',
-        ship: '', // filled by Eyre
-        app: 'cloak',
-        mark: 'cloak-action',
-        json: action,
-      },
-    ]),
-  });
-  return res.ok;
-}
+// Write operations use the same HTTP API as reads —
+// the agent handles POST /cloak-api/create and /burn directly,
+// authenticated via the Authorization header (no Eyre channels needed).
 
 // --- Cloudflare Worker (email client) ---
 
@@ -147,11 +127,14 @@ async function handleMessage(msg) {
     }
 
     case 'createCloak': {
-      return pokeShip({ 'create-cloak': { service: msg.service, label: msg.label } });
+      return shipRequest('/cloak-api/create', 'POST', {
+        service: msg.service,
+        label: msg.label,
+      });
     }
 
     case 'burnCloak': {
-      return pokeShip({ 'burn-cloak': { id: msg.id } });
+      return shipRequest('/cloak-api/burn', 'POST', { id: msg.id });
     }
 
     // --- Email ---

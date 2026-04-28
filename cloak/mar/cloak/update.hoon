@@ -22,7 +22,7 @@
       %cloak-burned
         %-  pairs
         :~  ['type' s+'cloakBurned']
-            ['id' (numb `@ud`id.upd)]
+            ['id' s+(scot %uv id.upd)]
         ==
       %cf-configured
         %-  pairs
@@ -42,7 +42,7 @@
       %token-revoked
         %-  pairs
         :~  ['type' s+'tokenRevoked']
-            ['id' (numb `@ud`id.upd)]
+            ['id' s+(scot %uv id.upd)]
         ==
       %verification-received
         %-  pairs

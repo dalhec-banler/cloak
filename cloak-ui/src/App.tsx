@@ -15,6 +15,7 @@ export default function App() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [selectedFull, setSelectedFull] = useState<FullIdentity | null>(null);
   const [loading, setLoading] = useState(true);
+  const [cfError, setCfError] = useState<string | null>(null);
 
   // Initial data fetch
   useEffect(() => {
@@ -54,6 +55,10 @@ export default function App() {
           break;
         case 'cfConfigured':
           setCfConfig(update.config);
+          setCfError(null);
+          break;
+        case 'cfSetupError':
+          setCfError(update.msg);
           break;
         case 'tokenGenerated':
           setTokens((prev) => [...prev, update.token]);
@@ -150,6 +155,7 @@ export default function App() {
         {view === 'setup' && (
           <SetupWizard
             config={cfConfig}
+            error={cfError}
             onSubmit={handleSetupCf}
             onBack={() => setView('dashboard')}
           />

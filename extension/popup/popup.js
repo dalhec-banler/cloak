@@ -239,21 +239,17 @@ submitCreateBtn.addEventListener('click', async () => {
 
   if (result.error) return;
 
-  // Fetch the newly created identity to show credentials
-  // Small delay to let the agent process the poke
-  await sleep(500);
-
-  const match = await sendMessage({ type: 'matchDomain', domain: service });
-  if (match && !match.error) {
-    resultEmail.textContent = match.credential.username;
-    resultPassword.textContent = match.credential.password;
+  // POST /create returns the full identity directly
+  if (result.credential) {
+    resultEmail.textContent = result.credential.username;
+    resultPassword.textContent = result.credential.password;
     createResult.classList.remove('hidden');
 
     autofillNewBtn.onclick = async () => {
       await sendMessage({
         type: 'autofill',
-        username: match.credential.username,
-        password: match.credential.password,
+        username: result.credential.username,
+        password: result.credential.password,
       });
     };
   }
@@ -279,10 +275,6 @@ function escapeHtml(str) {
   const div = document.createElement('div');
   div.textContent = str;
   return div.innerHTML;
-}
-
-function sleep(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 // --- Boot ---

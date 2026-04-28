@@ -68,6 +68,7 @@ export type Update =
   | { type: 'cloakCreated'; identity: CloakedIdentity; alias: Alias; credential: Credential }
   | { type: 'cloakBurned'; id: string }
   | { type: 'cfConfigured'; config: CfConfig }
+  | { type: 'cfSetupError'; msg: string }
   | { type: 'tokenGenerated'; token: ApiToken }
   | { type: 'tokenRevoked'; id: string }
   | { type: 'verificationReceived'; message: VerificationMessage }

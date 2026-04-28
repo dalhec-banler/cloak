@@ -83,6 +83,20 @@
   ?.  ?=(%s -.u.rid)  ~
   `p.u.rid
 ::
+::  extract JSON body from an iris HTTP response sign
+::  takes raw sign-arvo, returns parsed json or ~
+::
+++  extract-iris-json
+  |=  sa=sign-arvo
+  ^-  (unit json)
+  ?.  ?=([%iris %http-response *] sa)  ~
+  =/  =client-response:iris  +.+.sa
+  ?.  ?=(%finished -.client-response)  ~
+  ?~  full-file.client-response  ~
+  =/  file  u.full-file.client-response
+  =/  bod=@t  `@t`+.+.file
+  (de:json:html bod)
+::
 ::  JSON serialization helpers
 ::
 ++  enjs
@@ -92,12 +106,12 @@
     |=  ci=cloaked-identity
     ^-  json
     %-  pairs
-    :~  ['id' (numb `@ud`id.ci)]
+    :~  ['id' s+(scot %uv id.ci)]
         ['service' (sect service.ci)]
         ['label' (sect label.ci)]
         ['status' (sect ?:(?=(%active status.ci) 'active' 'burned'))]
-        ['aliasId' (numb `@ud`alias-id.ci)]
-        ['credId' (numb `@ud`cred-id.ci)]
+        ['aliasId' s+(scot %uv alias-id.ci)]
+        ['credId' s+(scot %uv cred-id.ci)]
         ['created' (sect (scot %da created.ci))]
         ['burned' ?~(burned.ci ~ (sect (scot %da u.burned.ci)))]
     ==
@@ -106,9 +120,9 @@
     |=  a=alias
     ^-  json
     %-  pairs
-    :~  ['id' (numb `@ud`id.a)]
+    :~  ['id' s+(scot %uv id.a)]
         ['address' (sect address.a)]
-        ['identityId' (numb `@ud`identity-id.a)]
+        ['identityId' s+(scot %uv identity-id.a)]
         ['service' (sect service.a)]
         ['status' (sect ?:(?=(%active status.a) 'active' 'burned'))]
     ==
@@ -117,8 +131,8 @@
     |=  c=credential
     ^-  json
     %-  pairs
-    :~  ['id' (numb `@ud`id.c)]
-        ['identityId' (numb `@ud`identity-id.c)]
+    :~  ['id' s+(scot %uv id.c)]
+        ['identityId' s+(scot %uv identity-id.c)]
         ['username' (sect username.c)]
         ['password' (sect password.c)]
         ['created' (sect (scot %da created.c))]
@@ -128,7 +142,7 @@
     |=  t=api-token
     ^-  json
     %-  pairs
-    :~  ['id' (numb `@ud`id.t)]
+    :~  ['id' s+(scot %uv id.t)]
         ['label' (sect label.t)]
         ['created' (sect (scot %da created.t))]
         ['lastUsed' (sect (scot %da last-used.t))]
@@ -138,8 +152,8 @@
     |=  v=verification-message
     ^-  json
     %-  pairs
-    :~  ['id' (numb `@ud`id.v)]
-        ['aliasId' (numb `@ud`alias-id.v)]
+    :~  ['id' s+(scot %uv id.v)]
+        ['aliasId' s+(scot %uv alias-id.v)]
         ['from' (sect from.v)]
         ['subject' (sect subject.v)]
         ['code' ?~(code.v ~ (sect u.code.v))]
@@ -170,20 +184,26 @@
 ++  dejs
   =,  dejs:format
   |%
+  ++  uv-id
+    |=  jon=json
+    ^-  @uvH
+    ?>  ?=(%s -.jon)
+    `@uvH`(slav %uv p.jon)
+  ::
   ++  action
     |=  jon=json
     ^-  ^action
     %.  jon
     %-  of
     :~  [%create-cloak (ot ~[service+so label+so])]
-        [%burn-cloak (ot ~[id+ni])]
+        [%burn-cloak (ot ~[id+uv-id])]
         [%set-cf-config (ot ~[domain+so api-token+so account-id+so])]
         [%setup-cloudflare ul]
         [%set-worker-url (ot ~[url+so])]
         [%generate-token (ot ~[label+so])]
-        [%revoke-token (ot ~[id+ni])]
-        [%store-verification (ot ~[alias-id+ni code+so])]
-        [%request-credentials (ot ~[id+ni])]
+        [%revoke-token (ot ~[id+uv-id])]
+        [%store-verification (ot ~[alias-id+uv-id code+so])]
+        [%request-credentials (ot ~[id+uv-id])]
     ==
   --
 --

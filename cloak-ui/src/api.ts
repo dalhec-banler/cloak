@@ -49,8 +49,7 @@ export async function fetchIdentities(): Promise<CloakedIdentity[]> {
 }
 
 export async function fetchIdentity(id: string): Promise<FullIdentity> {
-  const res = await fetch(`/cloak-api/identity/${id}`);
-  return res.json();
+  return scry<FullIdentity>(`/full-identity/${id}`);
 }
 
 export async function fetchCfConfig(): Promise<CfConfig | null> {
