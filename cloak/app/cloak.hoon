@@ -24,6 +24,7 @@
 ++  on-init
   :_  this
   :~  [%pass /bind-api %arvo %e %connect [~ /cloak-api] %cloak]
+      [%pass /bind-ui %arvo %e %connect [~ /apps/cloak] %cloak]
   ==
 ::
 ++  on-save  !>(state)
@@ -36,6 +37,7 @@
       %0
     :_  this(state old)
     :~  [%pass /bind-api %arvo %e %connect [~ /cloak-api] %cloak]
+        [%pass /bind-ui %arvo %e %connect [~ /apps/cloak] %cloak]
     ==
   ==
 ::
@@ -180,7 +182,14 @@
     ^-  (quip card _this)
     =/  url=request-line:server
       (parse-request-line:server url.request.req)
+    ::  serve web UI (authenticated by Eyre session, no token needed)
+    ::
+    ?:  ?=([%apps %cloak *] site.url)
+      (serve-web rid t.t.site.url ext.url)
+    ::  API routes: allow Eyre session auth OR token auth
+    ::
     =/  auth-ok=?
+      ?:  authenticated.req  %.y
       =/  auth-header=(unit @t)
         =/  headers=(list [key=@t value=@t])  header-list.request.req
         |-
@@ -376,6 +385,40 @@
       this(identities (~(put by identities) id burned-ci), aliases (~(put by aliases) alias-id.ci burned-al(status %burned)))
     ==
   ::
+  ++  serve-web
+    |=  [rid=@ta pax=(list @t) ext=(unit @ta)]
+    ^-  (quip card _this)
+    =/  clay-base=path  /(scot %p our.bowl)/cloak/(scot %da now.bowl)/web
+    ?+  [pax ext]
+      ::  SPA fallback: serve index.html for unknown routes
+      =/  html=@t  .^(@t %cx (weld clay-base /index/html))
+      :_  this
+      (give-file rid 200 'text/html; charset=utf-8' html)
+    ::
+        [~ ~]
+      =/  html=@t  .^(@t %cx (weld clay-base /index/html))
+      :_  this
+      (give-file rid 200 'text/html; charset=utf-8' html)
+    ::
+        [[%assets %index ~] [~ %js]]
+      =/  js=@t  .^(@t %cx (weld clay-base /assets/index/js))
+      :_  this
+      (give-file rid 200 'application/javascript' js)
+    ::
+        [[%assets %index ~] [~ %css]]
+      =/  css=@t  .^(@t %cx (weld clay-base /assets/index/css))
+      :_  this
+      (give-file rid 200 'text/css' css)
+    ==
+  ::
+  ++  give-file
+    |=  [rid=@ta code=@ud ctype=@t body=@t]
+    ^-  (list card)
+    :~  [%give %fact ~[/http-response/[rid]] %http-response-header !>([code ~[['content-type' ctype]]])]
+        [%give %fact ~[/http-response/[rid]] %http-response-data !>((some (as-octs:mimes:html body)))]
+        [%give %kick ~[/http-response/[rid]] ~]
+    ==
+  ::
   ++  give-http
     |=  [rid=@ta code=@ud body=(unit octs)]
     ^-  (list card)
@@ -464,6 +507,9 @@
   ^-  (quip card _this)
   ?+  wire  (on-arvo:def wire sign-arvo)
       [%bind-api ~]
+    `this
+  ::
+      [%bind-ui ~]
     `this
   ::
       [%cf-setup %zone-lookup ~]

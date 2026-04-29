@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import type { ApiToken } from '../types';
+import { parseUrbitDate } from '../types';
 
 interface Props {
   tokens: ApiToken[];
@@ -12,6 +13,7 @@ export default function TokenManager({ tokens, onGenerate, onRevoke, onBack }: P
   const [label, setLabel] = useState('');
   const [generating, setGenerating] = useState(false);
   const [revoking, setRevoking] = useState<string | null>(null);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
 
   const handleGenerate = async () => {
     if (!label || generating) return;
@@ -23,6 +25,12 @@ export default function TokenManager({ tokens, onGenerate, onRevoke, onBack }: P
       console.error('Failed to generate token:', err);
     }
     setGenerating(false);
+  };
+
+  const handleCopy = async (token: ApiToken) => {
+    await navigator.clipboard.writeText(token.token);
+    setCopiedId(token.id);
+    setTimeout(() => setCopiedId(null), 2000);
   };
 
   const handleRevoke = async (id: string) => {
@@ -78,21 +86,32 @@ export default function TokenManager({ tokens, onGenerate, onRevoke, onBack }: P
           {tokens.map((token) => (
             <div
               key={token.id}
-              className="flex items-center justify-between p-4 bg-surface border border-border rounded-lg"
+              className="p-4 bg-surface border border-border rounded-lg"
             >
-              <div>
+              <div className="flex items-center justify-between mb-2">
                 <p className="text-sm font-medium text-white">{token.label}</p>
-                <p className="text-xs text-muted mt-0.5">
-                  Created {new Date(token.created).toLocaleDateString()}
-                </p>
+                <button
+                  onClick={() => handleRevoke(token.id)}
+                  disabled={revoking === token.id}
+                  className="text-xs text-danger hover:underline disabled:opacity-50"
+                >
+                  {revoking === token.id ? '...' : 'Revoke'}
+                </button>
               </div>
-              <button
-                onClick={() => handleRevoke(token.id)}
-                disabled={revoking === token.id}
-                className="text-xs text-danger hover:underline disabled:opacity-50"
-              >
-                {revoking === token.id ? '...' : 'Revoke'}
-              </button>
+              <div className="flex items-center gap-2 mb-1">
+                <code className="text-xs text-accent font-mono bg-bg px-2 py-1 rounded flex-1 overflow-hidden text-ellipsis">
+                  {token.token}
+                </code>
+                <button
+                  onClick={() => handleCopy(token)}
+                  className="text-xs text-muted hover:text-ink transition-colors whitespace-nowrap"
+                >
+                  {copiedId === token.id ? 'Copied!' : 'Copy'}
+                </button>
+              </div>
+              <p className="text-xs text-faint">
+                Created {parseUrbitDate(token.created).toLocaleDateString()}
+              </p>
             </div>
           ))}
         </div>

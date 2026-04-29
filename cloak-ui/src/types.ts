@@ -43,9 +43,24 @@ export interface CfConfig {
 
 export interface ApiToken {
   id: string;
+  token: string;
   label: string;
   created: string;
   lastUsed: string;
+}
+
+export function parseUrbitDate(ud: string): Date {
+  const s = ud.replace(/^~/, '');
+  const [datePart, ...rest] = s.split('..');
+  const [year, month, day] = datePart.split('.').map(Number);
+  if (rest.length === 0) return new Date(year, month - 1, day);
+  const tp = rest[0].split('.');
+  return new Date(Date.UTC(
+    year, month - 1, day,
+    parseInt(tp[0]) || 0,
+    parseInt(tp[1]) || 0,
+    parseInt(tp[2]) || 0,
+  ));
 }
 
 export interface FullIdentity {

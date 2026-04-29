@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import type { FullIdentity } from '../types';
+import { parseUrbitDate } from '../types';
 
 interface Props {
   full: FullIdentity;
@@ -104,11 +105,11 @@ export default function IdentityDetail({ full, onBurn, onBack }: Props) {
         {/* Metadata */}
         <div className="pt-4 border-t border-border">
           <p className="text-xs text-faint">
-            Created {new Date(identity.created).toLocaleDateString()}
+            Created {parseUrbitDate(identity.created).toLocaleDateString()}
           </p>
           {identity.burned && (
             <p className="text-xs text-danger mt-1">
-              Burned {new Date(identity.burned).toLocaleDateString()}
+              Burned {parseUrbitDate(identity.burned).toLocaleDateString()}
             </p>
           )}
         </div>

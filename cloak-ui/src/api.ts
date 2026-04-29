@@ -5,7 +5,7 @@ let api: Urbit | null = null;
 
 export function getApi(): Urbit {
   if (!api) {
-    api = new Urbit('', '', window.ship);
+    api = new Urbit('', '', 'cloak');
     api.ship = window.ship;
   }
   return api;
@@ -25,10 +25,6 @@ export async function poke(action: CloakAction): Promise<void> {
   });
 }
 
-export async function scry<T>(path: string): Promise<T> {
-  return getApi().scry({ app: 'cloak', path });
-}
-
 export async function subscribe(
   onUpdate: (update: Update) => void,
   onError?: (err: unknown) => void
@@ -42,22 +38,30 @@ export async function subscribe(
   });
 }
 
-// --- Typed scry helpers ---
+// --- HTTP fetch helpers (bypass broken lens scry) ---
+
+async function apiFetch<T>(path: string): Promise<T> {
+  const res = await fetch(`/cloak-api${path}`, {
+    credentials: 'include',
+  });
+  if (!res.ok) throw new Error(`API ${path}: ${res.status}`);
+  return res.json();
+}
 
 export async function fetchIdentities(): Promise<CloakedIdentity[]> {
-  return scry<CloakedIdentity[]>('/identities');
+  return apiFetch<CloakedIdentity[]>('/identities');
 }
 
 export async function fetchIdentity(id: string): Promise<FullIdentity> {
-  return scry<FullIdentity>(`/full-identity/${id}`);
+  return apiFetch<FullIdentity>(`/identity/${id}`);
 }
 
 export async function fetchCfConfig(): Promise<CfConfig | null> {
-  const res = await scry<CfConfig | string>('/cf-config');
+  const res = await apiFetch<CfConfig | string>('/config');
   if (typeof res === 'string') return null;
   return res;
 }
 
 export async function fetchTokens(): Promise<ApiToken[]> {
-  return scry<ApiToken[]>('/tokens');
+  return apiFetch<ApiToken[]>('/tokens');
 }

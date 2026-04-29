@@ -143,6 +143,7 @@
     ^-  json
     %-  pairs
     :~  ['id' s+(scot %uv id.t)]
+        ['token' (sect token.t)]
         ['label' (sect label.t)]
         ['created' (sect (scot %da created.t))]
         ['lastUsed' (sect (scot %da last-used.t))]

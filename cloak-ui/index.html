@@ -10,7 +10,7 @@
         .split('; ')
         .find(row => row.startsWith('urbauth-'))
         ?.split('=')[0]
-        ?.replace('urbauth-', '') || '';
+        ?.replace('urbauth-~', '') || '';
     </script>
   </head>
   <body>
